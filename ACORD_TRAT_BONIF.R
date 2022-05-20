@@ -1,5 +1,10 @@
+## CONTROLE DE ACORDOS DE TRATAMENTOS BONIFICADOS
+
+## bibliotecas
+
 library(DBI)
 library(dplyr)
+library(lubridate)
 library(googlesheets4)
 
 
@@ -8,7 +13,9 @@ library(googlesheets4)
 con2 <- dbConnect(odbc::odbc(), "reproreplica")
 
 
-acordos_trat <- dbGetQuery(con2,"
+## sql lista acordos
+
+acordo_trat <- dbGetQuery(con2,"
 WITH CLI AS (SELECT C.CLICODIGO, CLINOMEFANT,GCLCODIGO GRUPO,SETOR FROM CLIEN C
                LEFT JOIN (SELECT CLICODIGO,ZODESCRICAO SETOR FROM ENDCLI ED
                INNER JOIN (SELECT ZOCODIGO,ZODESCRICAO FROM ZONA)Z ON ED.ZOCODIGO=Z.ZOCODIGO
@@ -41,8 +48,114 @@ AND TBPDTVALIDADE >='YESTERDAY'
 ORDER BY  COD_TABELA DESC
 ") 
 
-View(acordos_trat)
+View(acordo_trat)
 
-range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=acordos_trat,sheet = "DADOS ACORDOS",
-            range = "A1") 
+
+grupo <- dbGetQuery(con2,"SELECT GCLCODIGO GRUPO,GCLNOME NOME FROM GRUPOCLI")
+
+
+## === ACORDOS RECORRENTES =======================================================
+
+
+## LOJAS
+
+
+acordo_recorr_loja <- acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO R") %>% 
+  filter(is.na(GRUPO))
+
+
+extrat_recorr_loja <- extrat %>% group_by(CLICODIGO) %>% 
+                          filter(floor_date(EMISSAO,"month")==floor_date(Sys.Date(),"month")) %>%
+                            summarize(USO=sum(QTD))
+
+
+acordo_recorr_loja <- inner_join(acordo_recorr_loja,extrat_cli,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
+
+View(acordo_recorr_loja)
+
+
+
+## GRUPOS 
+
+acordo_recorr_grupo <- acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO R") %>% 
+                          filter(!is.na(GRUPO))  %>% 
+                            group_by(.[,3:9]) %>% summarize(TOTAL_ACORDO=max(TOTAL_ACORDO)) 
+
+
+View(acordo_recorr_grupo)
+
+
+extrat_recorr_grupo <- extrat %>% group_by(GRUPO) %>% filter(!is.na(GRUPO)) %>% 
+  filter(floor_date(EMISSAO,"month")==floor_date(Sys.Date(),"month")) %>%
+  summarize(USO=sum(QTD)) 
+
+
+
+View(extrat_recorr_grupo)
+
+acordo_recorr_grupo <- inner_join(acordo_recorr_grupo,extrat_recorr_grupo,by="GRUPO") %>% 
+                         mutate(SALDO=TOTAL_ACORDO-USO) %>% 
+                             left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
+
+View(acordo_recorr_grupo)
+
+
+## === ACORDOS COM TERMINO =======================================================
+
+
+## LOJAS
+
+acordos_termino_loja <- acordos_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>%  filter(is.na(GRUPO)) 
+
+
+View(acordos_trat_T_L)
+
+
+extrat_termnino_loja <- extrat %>% group_by(CLICODIGO,EMISSAO,ID_PEDIDO) %>% summarize(QTD=sum(QTD)) %>% 
+  inner_join(.,acordos_trat_T_L %>% select(CLICODIGO,INICIO,VALIDADE),by="CLICODIGO") %>% 
+               group_by(CLICODIGO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
+
+## GRUPOS
+
+acordos_termino_grupo <-  acordos_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>% filter(!is.na(GRUPO))  %>% 
+  group_by(.[,3:9]) %>% summarize(TOTAL_ACORDO=max(TOTAL_ACORDO))  
+
+View(acordos_termino_grupo)
+
+extrat_termino_grupo <- extrat %>% group_by(GRUPO,EMISSAO) %>% summarize(QTD=sum(QTD)) %>% 
+  inner_join(.,acordos_termino_grupo %>% select(GRUPO,INICIO,VALIDADE),by="GRUPO") %>% 
+  group_by(GRUPO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
+
+
+acordos_termino_grupo_2 <- inner_join(acordos_termino_grupo,extrat_termino_grupo) %>%  
+                               mutate(SALDO=TOTAL_ACORDO-USO) %>% 
+                                  left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
+
+View(acordos_termino_grupo_2)
+
+
+## === WRITE ON GOOGLE ==============================================================
+
+
+lojas <- union_all(acordo_recorr_loja,acordos_termino_loja_2)
+
+
+grupos <- union_all(acordos_recorr_grupo,acordos_termino_loja_2)
+
+
+
+range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDO LOJAS",
+            range = "A1",reformat = FALSE) 
+
+
+range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=grupos,sheet = "ACORDOS GRUPOS",
+            range = "A1",reformat = FALSE) 
+
+
+
+
+
+
+
+
 
