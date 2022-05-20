@@ -57,7 +57,7 @@ grupo <- dbGetQuery(con2,"SELECT GCLCODIGO GRUPO,GCLNOME NOME FROM GRUPOCLI")
 ## === ACORDOS RECORRENTES =======================================================
 
 
-## LOJAS
+## LOJAS ===============================
 
 
 acordo_recorr_loja <- acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO R") %>% 
@@ -69,13 +69,13 @@ extrat_recorr_loja <- extrat %>% group_by(CLICODIGO) %>%
                             summarize(USO=sum(QTD))
 
 
-acordo_recorr_loja <- inner_join(acordo_recorr_loja,extrat_cli,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
+acordo_recorr_loja_2 <- inner_join(acordo_recorr_loja,extrat_cli,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
 
-View(acordo_recorr_loja)
+View(acordo_recorr_loja_2)
 
 
 
-## GRUPOS 
+## GRUPOS ===============================
 
 acordo_recorr_grupo <- acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO R") %>% 
                           filter(!is.na(GRUPO))  %>% 
@@ -93,58 +93,73 @@ extrat_recorr_grupo <- extrat %>% group_by(GRUPO) %>% filter(!is.na(GRUPO)) %>%
 
 View(extrat_recorr_grupo)
 
-acordo_recorr_grupo <- inner_join(acordo_recorr_grupo,extrat_recorr_grupo,by="GRUPO") %>% 
+acordo_recorr_grupo_2 <- inner_join(acordo_recorr_grupo,extrat_recorr_grupo,by="GRUPO") %>% 
                          mutate(SALDO=TOTAL_ACORDO-USO) %>% 
                              left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
 
-View(acordo_recorr_grupo)
+View(acordo_recorr_grupo_2)
 
 
 ## === ACORDOS COM TERMINO =======================================================
 
 
-## LOJAS
+## LOJAS ===============================
 
-acordos_termino_loja <- acordos_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>%  filter(is.na(GRUPO)) 
-
-
-View(acordos_trat_T_L)
+acordo_termino_loja <- acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>%  filter(is.na(GRUPO)) 
 
 
-extrat_termnino_loja <- extrat %>% group_by(CLICODIGO,EMISSAO,ID_PEDIDO) %>% summarize(QTD=sum(QTD)) %>% 
-  inner_join(.,acordos_trat_T_L %>% select(CLICODIGO,INICIO,VALIDADE),by="CLICODIGO") %>% 
-               group_by(CLICODIGO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
+View(acordo_termino_loja)
 
-## GRUPOS
 
-acordos_termino_grupo <-  acordos_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>% filter(!is.na(GRUPO))  %>% 
+extrat_termino_loja <- extrat %>% 
+                          group_by(CLICODIGO,EMISSAO,ID_PEDIDO) %>% 
+                           summarize(QTD=sum(QTD)) %>% 
+                            inner_join(.,acordo_termino_loja %>% 
+                              select(CLICODIGO,INICIO,VALIDADE),by="CLICODIGO") %>% 
+                                group_by(CLICODIGO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
+
+
+View(extrat_termnino_loja)
+
+acordo_termino_loja_2 <- inner_join(acordo_termino_loja,extrat_termino_loja) %>%  
+                             mutate(SALDO=TOTAL_ACORDO-USO) 
+
+
+View(acordo_termino_loja_2)
+
+## GRUPOS ===============================
+
+acordo_termino_grupo <-  acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>% filter(!is.na(GRUPO))  %>% 
   group_by(.[,3:9]) %>% summarize(TOTAL_ACORDO=max(TOTAL_ACORDO))  
 
-View(acordos_termino_grupo)
+View(acordo_termino_grupo)
 
 extrat_termino_grupo <- extrat %>% group_by(GRUPO,EMISSAO) %>% summarize(QTD=sum(QTD)) %>% 
-  inner_join(.,acordos_termino_grupo %>% select(GRUPO,INICIO,VALIDADE),by="GRUPO") %>% 
+  inner_join(.,acordo_termino_grupo %>% select(GRUPO,INICIO,VALIDADE),by="GRUPO") %>% 
   group_by(GRUPO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
 
 
-acordos_termino_grupo_2 <- inner_join(acordos_termino_grupo,extrat_termino_grupo) %>%  
+acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo) %>%  
                                mutate(SALDO=TOTAL_ACORDO-USO) %>% 
                                   left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
 
-View(acordos_termino_grupo_2)
+View(acordo_termino_grupo_2)
 
 
 ## === WRITE ON GOOGLE ==============================================================
 
 
-lojas <- union_all(acordo_recorr_loja,acordos_termino_loja_2)
+lojas <- union_all(acordo_recorr_loja_2,acordos_termino_loja_2)
+
+View(lojas)
 
 
-grupos <- union_all(acordos_recorr_grupo,acordos_termino_loja_2)
+grupos <- union_all(acordo_recorr_grupo_2,acordos_termino_grupo_2)
+
+View(grupos)
 
 
-
-range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDO LOJAS",
+range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDOS LOJAS",
             range = "A1",reformat = FALSE) 
 
 
