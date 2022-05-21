@@ -250,10 +250,10 @@ acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo) 
 ## === WRITE ON GOOGLE ==============================================================
 
 
-lojas <- union_all(acordo_recorr_loja_2,acordos_termino_loja_2)
+lojas <- union_all(acordo_recorr_loja_2,acordos_termino_loja_2) %>% arrange(VALIDADE,SALDO)
 
 
-grupos <- union_all(acordo_recorr_grupo_2,acordos_termino_grupo_2)
+grupos <- union_all(acordo_recorr_grupo_2,acordos_termino_grupo_2)  %>% arrange(VALIDADE,SALDO)
 
 
 range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDOS LOJAS",
