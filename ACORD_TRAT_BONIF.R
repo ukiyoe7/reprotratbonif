@@ -186,7 +186,7 @@ extrat_recorr_loja <- extrat %>% group_by(CLICODIGO) %>%
                             summarize(USO=sum(QTD))
 
 
-acordo_recorr_loja_2 <- inner_join(acordo_recorr_loja,extrat_cli,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
+acordo_recorr_loja_2 <- inner_join(acordo_recorr_loja,extrat_recorr_loja,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
 
 
 
@@ -228,7 +228,7 @@ extrat_termino_loja <- extrat %>%
 
 
 
-acordo_termino_loja_2 <- inner_join(acordo_termino_loja,extrat_termino_loja) %>%  
+acordo_termino_loja_2 <- inner_join(acordo_termino_loja,extrat_termino_loja,by="CLICODIGO") %>%  
                              mutate(SALDO=TOTAL_ACORDO-USO) 
 
 
@@ -242,7 +242,7 @@ extrat_termino_grupo <- extrat %>% group_by(GRUPO,EMISSAO) %>% summarize(QTD=sum
   group_by(GRUPO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
 
 
-acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo) %>%  
+acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo,by="GRUPO") %>%  
                                mutate(SALDO=TOTAL_ACORDO-USO) %>% 
                                   left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
 
@@ -250,10 +250,10 @@ acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo) 
 ## === WRITE ON GOOGLE ==============================================================
 
 
-lojas <- union_all(acordo_recorr_loja_2,acordos_termino_loja_2) %>% arrange(VALIDADE,SALDO)
+lojas <- union_all(acordo_recorr_loja_2,acordo_termino_loja_2) %>% arrange(VALIDADE,SALDO)
 
 
-grupos <- union_all(acordo_recorr_grupo_2,acordos_termino_grupo_2)  %>% arrange(VALIDADE,SALDO)
+grupos <- union_all(acordo_recorr_grupo_2,acordo_termino_grupo_2)  %>% arrange(VALIDADE,SALDO)
 
 
 range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDOS LOJAS",

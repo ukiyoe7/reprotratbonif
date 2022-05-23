@@ -1,0 +1,129 @@
+library(DBI)
+library(dplyr)
+library(googlesheets4)
+
+
+## conexão com banco replica 
+
+con2 <- dbConnect(odbc::odbc(), "reproreplica")
+
+extrat <- dbGetQuery(con2,"
+  EXECUTE BLOCK RETURNS (CLICODIGO INT,
+                          NOME VARCHAR(50),
+                           GRUPO INT,
+                            SETOR VARCHAR(35),
+                             ID_PEDIDO VARCHAR(35),
+                              EMISSAO DATE,
+                               MES INT,
+                                PROCODIGO VARCHAR(35),
+                                DESCRICAO VARCHAR(50),
+                                 QTD DECIMAL(15,2), 
+                                  VRVENDA DECIMAL(15,2))
+AS DECLARE VARIABLE CLI INT;
+BEGIN
+FOR
+
+SELECT DISTINCT CL.CLICODIGO FROM CLITBP CL
+INNER JOIN (SELECT DISTINCT TBPCODIGO FROM TABPRECO WHERE TBPDTVALIDADE>='TODAY' 
+            AND TBPDESCRICAO LIKE '%TRATAMENTO BONIFICADO%')T ON T.TBPCODIGO=CL.TBPCODIGO
+
+INTO : CLI
+
+DO
+BEGIN
+FOR
+ 
+  WITH  CL AS 
+  (SELECT C.CLICODIGO,CLINOMEFANT,GCLCODIGO,ZODESCRICAO FROM CLIEN C
+   LEFT JOIN (SELECT CLICODIGO,E.ZOCODIGO,ZODESCRICAO FROM ENDCLI E
+INNER JOIN (SELECT ZOCODIGO,ZODESCRICAO FROM ZONA)Z ON E.ZOCODIGO=Z.ZOCODIGO
+WHERE ENDFAT='S') ED ON C.CLICODIGO=ED.CLICODIGO
+  WHERE CLICLIENTE='S' AND C.CLICODIGO=:CLI),
+  
+   TAB AS 
+  (SELECT DISTINCT C.TBPCODIGO
+    FROM CLITBP C
+    INNER JOIN (SELECT TBPCODIGO,TBPDTINICIO,TBPDTVALIDADE FROM TABPRECO WHERE TBPDTVALIDADE>='TODAY' 
+            AND TBPDESCRICAO LIKE '%TRATAMENTO BONIFICADO%')A ON C.TBPCODIGO=A.TBPCODIGO
+            WHERE CLICODIGO=:CLI),
+  
+  FIS AS 
+  (SELECT FISCODIGO 
+    FROM TBFIS WHERE FISTPNATOP IN ('V','SR','R')),
+  
+  PED AS 
+  (SELECT ID_PEDIDO,P.CLICODIGO,CLINOMEFANT,GCLCODIGO,PEDDTEMIS,ZODESCRICAO
+    FROM PEDID P
+    INNER JOIN CL ON P.CLICODIGO=CL.CLICODIGO
+    INNER JOIN FIS ON P.FISCODIGO1=FIS.FISCODIGO
+    WHERE 
+    PEDDTEMIS >= DATEADD(-120 DAY TO CURRENT_DATE)
+    AND PEDSITPED<>'C'),
+  
+  PROD AS 
+  (SELECT DISTINCT PROCODIGO
+    FROM TBPPRODU T
+    INNER JOIN TAB ON TAB.TBPCODIGO=T.TBPCODIGO),
+  
+  PED_PROMO_PAP AS 
+  (SELECT P1.ID_PEDIDO ID_PEDIDO_PROMO 
+    FROM PDPRD P1
+    INNER JOIN PED ON P1.ID_PEDIDO=PED.ID_PEDIDO
+    WHERE PROCODIGO='PAP'),
+  
+  PED_PROMO_PLUGIN AS 
+  (SELECT ID_PEDIDPROMOCAO ID_PEDIDO_PROMO 
+    FROM PEDIDPROMO P2
+    INNER JOIN PED ON P2.ID_PEDIDPROMOCAO=PED.ID_PEDIDO),
+  
+  PED_PROMO_UNION AS 
+  (SELECT ID_PEDIDO_PROMO 
+    FROM PED_PROMO_PAP UNION
+    SELECT ID_PEDIDO_PROMO 
+    FROM PED_PROMO_PLUGIN)
+  
+SELECT CLICODIGO,
+        CLINOMEFANT,
+         GCLCODIGO,
+          ZODESCRICAO,
+           PD.ID_PEDIDO,
+             PEDDTEMIS,
+              EXTRACT(MONTH FROM PEDDTEMIS) MES,
+               PD.PROCODIGO,
+               PDPDESCRICAO,
+                PDPQTDADE QTD,
+                 PDPUNITLIQUIDO VRVENDA
+                  FROM PDPRD PD
+                  INNER JOIN PED P ON PD.ID_PEDIDO=P.ID_PEDIDO
+                  INNER JOIN PROD ON PD.PROCODIGO=PROD.PROCODIGO
+                  LEFT OUTER JOIN PED_PROMO_UNION PMU ON PD.ID_PEDIDO=PMU.ID_PEDIDO_PROMO
+                  WHERE 
+                  ID_PEDIDO_PROMO IS NULL 
+                  GROUP BY 1,2,3,4,5,6,7,8,9,10,11 HAVING PDPUNITLIQUIDO<=1
+                  
+                  
+                INTO :CLICODIGO,
+                      :NOME,
+                       :GRUPO,
+                        :SETOR,
+                         :ID_PEDIDO,
+                          :EMISSAO,
+                           :MES,
+                            :PROCODIGO,
+                             :DESCRICAO,
+                              :QTD,
+                               :VRVENDA
+  
+  DO BEGIN
+  
+  SUSPEND;
+  
+  END
+  END
+  END") 
+
+extrat2 <- extrat %>% arrange(desc(EMISSAO),CLICODIGO,GRUPO)
+
+
+range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=extrat2,sheet = "EXTRATO",
+            range = "A1",reformat = FALSE) 
