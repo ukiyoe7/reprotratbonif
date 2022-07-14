@@ -1,6 +1,7 @@
 library(DBI)
 library(dplyr)
 library(googlesheets4)
+library(lubridate)
 
 
 ## conexão com banco replica 
@@ -127,3 +128,9 @@ extrat2 <- extrat %>% arrange(desc(EMISSAO),CLICODIGO,GRUPO)
 
 range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=extrat2,sheet = "EXTRATO",
             range = "A1",reformat = FALSE) 
+
+
+
+
+
+
