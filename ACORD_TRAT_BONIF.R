@@ -13,7 +13,7 @@ library(googlesheets4)
 
 ## DB CONNECTION
 
-con2 <- dbConnect(odbc::odbc(), "reproreplica")
+  con2 <- dbConnect(odbc::odbc(), "reproreplica")
 
 
 ## LISTA TRATAMENTOS BONIFICADOS ================================================
@@ -186,7 +186,9 @@ extrat_recorr_loja <- extrat %>% group_by(CLICODIGO) %>%
                             summarize(USO=sum(QTD))
 
 
-acordo_recorr_loja_2 <- inner_join(acordo_recorr_loja,extrat_recorr_loja,by="CLICODIGO") %>% mutate(SALDO=TOTAL_ACORDO-USO) 
+acordo_recorr_loja_2 <- left_join(acordo_recorr_loja,extrat_recorr_loja,by="CLICODIGO") %>% 
+  mutate(USO = ifelse(is.na(USO), 0, USO)) %>% 
+  mutate(SALDO=TOTAL_ACORDO-USO) %>% mutate(SALDO = ifelse(is.na(SALDO), 0, SALDO))
 
 
 
@@ -207,8 +209,9 @@ extrat_recorr_grupo <- extrat %>% group_by(GRUPO) %>% filter(!is.na(GRUPO)) %>%
   summarize(USO=sum(QTD)) 
 
 
-acordo_recorr_grupo_2 <- inner_join(acordo_recorr_grupo,extrat_recorr_grupo,by="GRUPO") %>% 
-                         mutate(SALDO=TOTAL_ACORDO-USO) %>% 
+acordo_recorr_grupo_2 <- left_join(acordo_recorr_grupo,extrat_recorr_grupo,by="GRUPO") %>% 
+  mutate(USO = ifelse(is.na(USO), 0, USO)) %>% 
+                         mutate(SALDO=TOTAL_ACORDO-USO) %>%  mutate(SALDO = ifelse(is.na(SALDO), 0, SALDO)) %>% 
                              left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
 
 ## === ACORDOS COM TERMINO =======================================================
@@ -228,22 +231,24 @@ extrat_termino_loja <- extrat %>%
 
 
 
-acordo_termino_loja_2 <- inner_join(acordo_termino_loja,extrat_termino_loja,by="CLICODIGO") %>%  
-                             mutate(SALDO=TOTAL_ACORDO-USO) 
+  acordo_termino_loja_2 <- left_join(acordo_termino_loja,extrat_termino_loja,by="CLICODIGO") %>%
+    mutate(USO = ifelse(is.na(USO), 0, USO)) %>% 
+                             mutate(SALDO=TOTAL_ACORDO-USO) %>%  mutate(SALDO = ifelse(is.na(SALDO), 0, SALDO))
 
 
 ## GRUPOS =======
 
 acordo_termino_grupo <-  acordo_trat %>% filter(DESCRICAO=="TRATAMENTO BONIFICADO T") %>% filter(!is.na(GRUPO))  %>% 
-  group_by(.[,3:9]) %>% summarize(TOTAL_ACORDO=max(TOTAL_ACORDO))  
+  group_by(.[,3:9]) %>% summarize(TOTAL_ACORDO=max(TOTAL_ACORDO)) 
 
 extrat_termino_grupo <- extrat %>% group_by(GRUPO,EMISSAO) %>% summarize(QTD=sum(QTD)) %>% 
-  inner_join(.,acordo_termino_grupo %>% select(GRUPO,INICIO,VALIDADE),by="GRUPO") %>% 
+  inner_join(.,acordo_termino_grupo %>% .[,c(1,5,6)] %>% as.data.frame(.) %>% distinct(.),by="GRUPO") %>%
   group_by(GRUPO) %>% summarize(USO=sum(QTD[EMISSAO>=INICIO & EMISSAO<=VALIDADE]))
 
 
-acordo_termino_grupo_2 <- inner_join(acordo_termino_grupo,extrat_termino_grupo,by="GRUPO") %>%  
-                               mutate(SALDO=TOTAL_ACORDO-USO) %>% 
+acordo_termino_grupo_2 <- left_join(acordo_termino_grupo,extrat_termino_grupo,by="GRUPO") %>% 
+                      mutate(USO = ifelse(is.na(USO), 0, USO)) %>% 
+                               mutate(SALDO=TOTAL_ACORDO-USO) %>% mutate(SALDO = ifelse(is.na(SALDO), 0, SALDO)) %>%  
                                   left_join(.,grupo,by="GRUPO") %>% .[,c(1,11,2:10)] 
 
 
@@ -257,11 +262,11 @@ grupos <- union_all(acordo_recorr_grupo_2,acordo_termino_grupo_2)  %>% arrange(V
 
 
 range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=lojas,sheet = "ACORDOS LOJAS",
-            range = "A1",reformat = FALSE) 
+            range = "A:L",reformat = FALSE) 
 
 
 range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=grupos,sheet = "ACORDOS GRUPOS",
-            range = "A1",reformat = FALSE) 
+            range = "A:L",reformat = FALSE) 
 
 
 
