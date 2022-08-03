@@ -1,0 +1,65 @@
+library(DBI)
+library(dplyr)
+library(googlesheets4)
+
+
+## conexão com banco replica 
+
+con2 <- dbConnect(odbc::odbc(), "reproreplica")
+
+promo_400 <- dbGetQuery(con2,"
+   WITH FIS AS 
+  (SELECT FISCODIGO 
+    FROM TBFIS WHERE FISTPNATOP IN ('V','SR','R')),
+  
+  PED AS 
+  (SELECT ID_PEDIDO,P.CLICODIGO,PEDDTBAIXA
+    FROM PEDID P
+    INNER JOIN FIS ON P.FISCODIGO1=FIS.FISCODIGO
+    WHERE 
+    PEDDTBAIXA BETWEEN '01.06.2022' AND '30.06.2022'
+    AND PEDSITPED<>'C' AND CLICODIGO=400),
+  
+  PED_PROMO_PAP AS 
+  (SELECT P1.ID_PEDIDO ID_PEDIDO_PROMO 
+    FROM PDPRD P1
+    INNER JOIN PED ON P1.ID_PEDIDO=PED.ID_PEDIDO
+    WHERE PROCODIGO='PAP'),
+  
+  PED_PROMO_PLUGIN AS 
+  (SELECT ID_PEDIDPROMOCAO ID_PEDIDO_PROMO 
+    FROM PEDIDPROMO P2
+    INNER JOIN PED ON P2.ID_PEDIDPROMOCAO=PED.ID_PEDIDO),
+  
+  PED_PROMO_UNION AS 
+  (SELECT ID_PEDIDO_PROMO 
+    FROM PED_PROMO_PAP UNION
+    SELECT ID_PEDIDO_PROMO 
+    FROM PED_PROMO_PLUGIN),
+    
+    PROD AS (SELECT PROCODIGO FROM PRODU WHERE PROTIPO NOT IN ('M','T','C','K'))
+    
+     
+SELECT CLICODIGO,
+           PD.ID_PEDIDO,
+             PEDDTBAIXA,
+               PD.PROCODIGO,
+               PDPDESCRICAO,
+                SUM(PDPQTDADE) QTD,
+                 SUM(PDPUNITLIQUIDO) VRVENDA
+                  FROM PDPRD PD
+                  INNER JOIN PED ON PD.ID_PEDIDO=PED.ID_PEDIDO
+                   INNER JOIN PROD P ON PD.PROCODIGO=P.PROCODIGO
+                   INNER JOIN PED_PROMO_UNION PMU ON PD.ID_PEDIDO=PMU.ID_PEDIDO_PROMO
+                  GROUP BY 1,2,3,4,5
+                  ") 
+
+View(promo_400)
+
+
+promo_400 %>% summarize(QTD=sum(QTD)/2)
+
+promo_400 %>% summarize(QTD=(sum(QTD)/2)*0.5)
+
+range_write("1FnrTEE_RZyu0qMGB8xYpOlQvg2EFIJdNBbgUG3h4NuY",data=extrat2,sheet = "EXTRATO",
+            range = "A1",reformat = FALSE) 
