@@ -62,7 +62,7 @@ trat_t_qtd <- dbGetQuery(con2,"
                                 QTD DECIMAL(15,2), 
                                  VRVENDA DECIMAL(15,2))
   
-   AS DECLARE VARIABLE CLIENTE INT;
+  AS DECLARE VARIABLE CLIENTE INT;
    DECLARE VARIABLE TBCODIGO INT;
   
   BEGIN
